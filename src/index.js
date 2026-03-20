@@ -21,6 +21,31 @@ const TIME_SLOTS = [
   '14:30', '15:00', '15:30', '16:00', '16:30'
 ];
 
+// Cached MongoDB connection for serverless
+let isConnected = false;
+async function connectDB() {
+  if (isConnected) return;
+  await mongoose.connect(MONGODB_URI);
+  isConnected = true;
+  console.log('Connected to MongoDB');
+}
+
+// Middleware to ensure DB connection on every request (for serverless)
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('DB connection error:', err);
+    res.status(500).json({ error: 'Database connection failed' });
+  }
+});
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'EP Slot Booking API' });
+});
+
 // GET /api/slots?date=2026-03-23
 app.get('/api/slots', async (req, res) => {
   try {
@@ -77,7 +102,6 @@ app.post('/api/book', async (req, res) => {
         formNumber
       });
     } catch (dupErr) {
-      // Duplicate key error = someone else booked it between our check and insert
       if (dupErr.code === 11000) {
         return res.status(409).json({ error: 'This slot has already been booked!' });
       }
@@ -86,7 +110,6 @@ app.post('/api/book', async (req, res) => {
 
     return res.status(201).json({ message: 'Slot booked successfully!', date, timeSlot });
   } catch (err) {
-    // Handle duplicate key error (backup for race condition)
     if (err.code === 11000) {
       return res.status(409).json({ error: 'This slot has already been booked!' });
     }
@@ -100,16 +123,17 @@ app.get('/api/dates', (_req, res) => {
   res.json({ dates: VALID_DATES });
 });
 
-// Connect to MongoDB and start server
-mongoose
-  .connect(MONGODB_URI)
-  .then(() => {
-    console.log('Connected to MongoDB');
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  connectDB().then(() => {
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
-  })
-  .catch((err) => {
+  }).catch(err => {
     console.error('MongoDB connection error:', err);
     process.exit(1);
   });
+}
+
+// Export for Vercel serverless
+module.exports = app;
