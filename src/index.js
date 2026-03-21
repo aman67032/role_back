@@ -155,7 +155,19 @@ app.post('/api/admin/login', async (req, res) => {
     }
 
     const bcrypt = require('bcryptjs');
-    const isMatch = await bcrypt.compare(password, admin.password);
+    let isMatch = false;
+    
+    // Fallback: Check if password is mathematically matching the hash, 
+    // OR if it exactly matches a leftover plain-text password in the database.
+    if (admin.password === password) {
+      isMatch = true;
+      // Auto-migrate the plain-text password to a secure hash
+      admin.password = await bcrypt.hash(password, 10);
+      await admin.save();
+    } else {
+      isMatch = await bcrypt.compare(password, admin.password);
+    }
+
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
