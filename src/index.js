@@ -3,6 +3,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const Booking = require('./models/Booking.js');
+const Admin = require('./models/Admin.js');
 
 dotenv.config();
 
@@ -35,6 +36,20 @@ async function connectDB() {
   await mongoose.connect(MONGODB_URI);
   isConnected = true;
   console.log('Connected to MongoDB');
+
+  // Ensure default admin user exists
+  try {
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash('Ajkiopo', 10);
+    await Admin.findOneAndUpdate(
+      { username: 'jklu' },
+      { username: 'jklu', password: hashedPassword },
+      { upsert: true }
+    );
+    console.log('Admin user verified in DB (with hashed password)');
+  } catch (err) {
+    console.error('Error verifying admin user:', err);
+  }
 }
 
 // Middleware to ensure DB connection on every request (for serverless)
@@ -128,6 +143,59 @@ app.post('/api/book', async (req, res) => {
 // GET /api/dates
 app.get('/api/dates', (_req, res) => {
   res.json({ dates: VALID_DATES });
+});
+
+// Admin Login Route
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const admin = await Admin.findOne({ username });
+    if (!admin) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const isMatch = await bcrypt.compare(password, admin.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { id: admin._id, username: admin.username },
+      process.env.JWT_SECRET || 'super-secret-key-for-ep-slots',
+      { expiresIn: '1d' }
+    );
+
+    res.json({ success: true, token });
+  } catch (err) {
+    res.status(500).json({ error: 'Login error' });
+  }
+});
+
+// Admin Bookings Route - Protected
+app.get('/api/admin/bookings', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized access' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const jwt = require('jsonwebtoken');
+    
+    try {
+      jwt.verify(token, process.env.JWT_SECRET || 'super-secret-key-for-ep-slots');
+    } catch (err) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    // Fetch all bookings and sort by date then timeSlot
+    const bookings = await Booking.find().sort({ date: 1, timeSlot: 1 });
+    res.json(bookings);
+  } catch (err) {
+    res.status(500).json({ error: 'Error fetching bookings' });
+  }
 });
 
 // For local development
