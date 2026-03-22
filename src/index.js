@@ -12,7 +12,9 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://localhost:5000',
-    'https://role-self-phi.vercel.app'
+    'https://role-self-phi.vercel.app',
+    'https://role-oybwcx1qw-aman67032s-projects.vercel.app',
+    /^https:\/\/role-.*\.vercel\.app$/
   ],
   credentials: true
 }));
