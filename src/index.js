@@ -22,7 +22,7 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Valid dates and time slots
-const VALID_DATES = ['2026-03-23', '2026-03-24', '2026-03-25', '2026-03-26'];
+const VALID_DATES = ['2026-03-23', '2026-03-24', '2026-03-25', '2026-03-26', '2026-03-27'];
 const TIME_SLOTS = [
   '09:30', '10:00', '10:30', '11:00', '11:30',
   '12:00', '12:30', '13:00', '13:30', '14:00',
