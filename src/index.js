@@ -212,6 +212,52 @@ app.get('/api/admin/bookings', async (req, res) => {
   }
 });
 
+// Admin Export Bookings - CSV
+app.get('/api/admin/bookings/export', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized access' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const jwt = require('jsonwebtoken');
+    
+    try {
+      jwt.verify(token, process.env.JWT_SECRET || 'super-secret-key-for-ep-slots');
+    } catch (err) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const bookings = await Booking.find().sort({ date: 1, timeSlot: 1 });
+    
+    // Create CSV header
+    let csvContent = 'Date,Time Slot,Name,Phone,JKLU ID,Roll Number,Form Number,Booking Date\n';
+    
+    // Add rows
+    bookings.forEach(b => {
+      const row = [
+        b.date,
+        b.timeSlot,
+        `"${b.name.replace(/"/g, '""')}"`,
+        `'${b.phone}`, // Added ' to prevent Excel from scientific notation
+        b.jkluId,
+        b.rollNumber,
+        b.formNumber,
+        new Date(b.createdAt).toLocaleString()
+      ].join(',');
+      csvContent += row + '\n';
+    });
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=ep_all_bookings.csv');
+    res.status(200).send(csvContent);
+  } catch (err) {
+    console.error('Export error:', err);
+    res.status(500).json({ error: 'Error exporting bookings' });
+  }
+});
+
 // For local development
 if (process.env.NODE_ENV !== 'production') {
   connectDB().then(() => {
