@@ -24,12 +24,54 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Valid dates and time slots
-const VALID_DATES = ['2026-03-23', '2026-03-24', '2026-03-25', '2026-03-26', '2026-03-27'];
-const TIME_SLOTS = [
-  '09:30', '10:00', '10:30', '11:00', '11:30',
-  '12:00', '12:30', '13:00', '13:30', '14:00',
-  '14:30', '15:00', '15:30', '16:00', '16:30'
-];
+// Configuration for OH/Cores
+const OH_CORES_CONFIG = {
+  dates: ['2026-03-23', '2026-03-24', '2026-03-25', '2026-03-26', '2026-03-27'],
+  slots: [
+    '09:30', '10:00', '10:30', '11:00', '11:30',
+    '12:00', '12:30', '13:00', '13:30', '14:00',
+    '14:30', '15:00', '15:30', '16:00', '16:30'
+  ]
+};
+
+// Configuration for Volunteers
+const VOLUNTEER_CONFIG = {
+  dates: ['2026-03-28', '2026-03-30', '2026-04-01', '2026-04-02', '2026-04-03', '2026-04-04', '2026-04-06'],
+  // Base slots available on most days
+  commonSlots: [
+    '09:30', '09:45', '10:00', '10:15', '10:30', '10:45',
+    '11:00', '11:00', '11:00', '11:00', '11:00', // 5 slots at 11:00
+    '11:15', '11:30', '11:45', '12:00', '12:15'
+  ]
+};
+
+// Helper to get all slots for a category and date
+function getSlotsForCategory(category, date) {
+  if (category === 'volunteers') {
+    const slots = [...VOLUNTEER_CONFIG.commonSlots];
+    if (date === '2026-03-28') {
+      // March 28 specific: 1:30 to 2:45, then 3:00 to 5:15
+      slots.push('13:30', '13:45', '14:00', '14:15', '14:30', '14:45');
+      slots.push('15:00', '15:15', '15:30', '15:45', '16:00', '16:15', '16:30', '16:45', '17:00', '17:15');
+    } else {
+      // Other days: 12:30 to 1:45, then 2:30 to 5:15
+      slots.push('12:30', '12:45', '13:00', '13:15', '13:30', '13:45');
+      slots.push('14:30', '14:45', '15:00', '15:15', '15:30', '15:45', '16:00', '16:15', '16:30', '16:45', '17:00', '17:15');
+    }
+    // Map slots with instance index for parallel slots
+    const counts = {};
+    return slots.map(s => {
+      counts[s] = (counts[s] || 0) + 1;
+      return { timeSlot: s, slotIndex: counts[s] - 1 };
+    });
+  }
+  // Default to OH/Cores
+  return OH_CORES_CONFIG.slots.map(s => ({ timeSlot: s, slotIndex: 0 }));
+}
+
+function getValidDatesForCategory(category) {
+  return category === 'volunteers' ? VOLUNTEER_CONFIG.dates : OH_CORES_CONFIG.dates;
+}
 
 // Cached MongoDB connection for serverless
 let isConnected = false;
@@ -70,22 +112,27 @@ app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'EP Slot Booking API' });
 });
 
-// GET /api/slots?date=2026-03-23
+// GET /api/slots?date=2026-03-23&category=oh-cores
 app.get('/api/slots', async (req, res) => {
   try {
-    const { date } = req.query;
-    if (!date || !VALID_DATES.includes(date)) {
+    const { date, category = 'oh-cores' } = req.query;
+    const validDates = getValidDatesForCategory(category);
+    
+    if (!date || !validDates.includes(date)) {
       return res.status(400).json({ error: 'Invalid or missing date parameter' });
     }
 
-    const bookings = await Booking.find({ date }, { timeSlot: 1, _id: 0 });
-    const bookedSlots = bookings.map(b => b.timeSlot);
+    const allSlots = getSlotsForCategory(category, date);
+    const bookings = await Booking.find({ date, category }, { timeSlot: 1, slotIndex: 1, _id: 0 });
+    
+    const bookedSlotKeys = bookings.map(b => `${b.timeSlot}-${b.slotIndex}`);
 
     return res.json({
       date,
-      allSlots: TIME_SLOTS,
-      bookedSlots,
-      availableSlots: TIME_SLOTS.filter(s => !bookedSlots.includes(s))
+      category,
+      allSlots, // Array of { timeSlot, slotIndex }
+      bookedSlots: bookings,
+      availableSlots: allSlots.filter(s => !bookedSlotKeys.includes(`${s.timeSlot}-${s.slotIndex}`))
     });
   } catch (err) {
     console.error('Error fetching slots:', err);
@@ -96,29 +143,36 @@ app.get('/api/slots', async (req, res) => {
 // POST /api/book — Atomically books a slot
 app.post('/api/book', async (req, res) => {
   try {
-    const { date, timeSlot, name, phone, jkluId, rollNumber, formNumber } = req.body;
+    const { date, timeSlot, slotIndex = 0, category = 'oh-cores', name, phone, jkluId, rollNumber, formNumber } = req.body;
 
     if (!date || !timeSlot || !name || !phone || !jkluId || !rollNumber || !formNumber) {
       return res.status(400).json({ error: 'All fields are required' });
     }
-    if (!VALID_DATES.includes(date)) {
+    
+    const validDates = getValidDatesForCategory(category);
+    if (!validDates.includes(date)) {
       return res.status(400).json({ error: 'Invalid date' });
     }
-    if (!TIME_SLOTS.includes(timeSlot)) {
-      return res.status(400).json({ error: 'Invalid time slot' });
+    
+    const allSlotsForDay = getSlotsForCategory(category, date);
+    const isValidSlot = allSlotsForDay.some(s => s.timeSlot === timeSlot && s.slotIndex === slotIndex);
+    if (!isValidSlot) {
+      return res.status(400).json({ error: 'Invalid time slot or index' });
     }
 
     // First check if slot is already booked
-    const existing = await Booking.findOne({ date, timeSlot });
+    const existing = await Booking.findOne({ date, timeSlot, slotIndex, category });
     if (existing) {
       return res.status(409).json({ error: 'This slot has already been booked!' });
     }
 
-    // Attempt atomic insert — only succeeds if no duplicate exists (unique index)
+    // Attempt atomic insert
     try {
       await Booking.create({
         date,
         timeSlot,
+        slotIndex,
+        category,
         name,
         phone,
         jkluId,
@@ -132,7 +186,7 @@ app.post('/api/book', async (req, res) => {
       throw dupErr;
     }
 
-    return res.status(201).json({ message: 'Slot booked successfully!', date, timeSlot });
+    return res.status(201).json({ message: 'Slot booked successfully!', date, timeSlot, category });
   } catch (err) {
     if (err.code === 11000) {
       return res.status(409).json({ error: 'This slot has already been booked!' });
@@ -142,9 +196,10 @@ app.post('/api/book', async (req, res) => {
   }
 });
 
-// GET /api/dates
-app.get('/api/dates', (_req, res) => {
-  res.json({ dates: VALID_DATES });
+// GET /api/dates?category=oh-cores
+app.get('/api/dates', (req, res) => {
+  const { category = 'oh-cores' } = req.query;
+  res.json({ dates: getValidDatesForCategory(category) });
 });
 
 // Admin Login Route
