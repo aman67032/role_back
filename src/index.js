@@ -91,8 +91,15 @@ async function connectDB() {
       { upsert: true }
     );
     console.log('Admin user verified in DB (with hashed password)');
+    
+    // Migration: Update existing bookings that don't have a category
+    await Booking.updateMany(
+      { category: { $exists: false } },
+      { $set: { category: 'oh-cores', slotIndex: 0 } }
+    );
+    console.log('Migrated old bookings to default category');
   } catch (err) {
-    console.error('Error verifying admin user:', err);
+    console.error('Error during DB startup tasks:', err);
   }
 }
 
@@ -286,14 +293,16 @@ app.get('/api/admin/bookings/export', async (req, res) => {
 
     const bookings = await Booking.find().sort({ date: 1, timeSlot: 1 });
     
-    // Create CSV header
-    let csvContent = 'Date,Time Slot,Name,Phone,JKLU ID,Roll Number,Form Number,Booking Date\n';
+    // Create CSV header (using let for content appending)
+    let csvContent = 'Date,Time Slot,Category,Instance,Name,Phone,JKLU ID,Roll Number,Form Number,Booking Date\n';
     
     // Add rows
     bookings.forEach(b => {
       const row = [
         b.date,
         b.timeSlot,
+        b.category || 'oh-cores',
+        (b.slotIndex || 0) + 1,
         `"${b.name.replace(/"/g, '""')}"`,
         `'${b.phone}`, // Added ' to prevent Excel from scientific notation
         b.jkluId,
