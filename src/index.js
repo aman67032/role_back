@@ -24,6 +24,8 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Valid dates and time slots
+const BLOCKED_DATES = ['2026-03-28', '2026-03-30', '2026-04-01'];
+
 // Configuration for OH/Cores
 const OH_CORES_CONFIG = {
   dates: ['2026-03-23', '2026-03-24', '2026-03-25', '2026-03-26', '2026-03-27'],
@@ -154,6 +156,10 @@ app.post('/api/book', async (req, res) => {
 
     if (!date || !timeSlot || !name || !phone || !jkluId || !rollNumber || !formNumber) {
       return res.status(400).json({ error: 'All fields are required' });
+    }
+    
+    if (BLOCKED_DATES.includes(date)) {
+      return res.status(403).json({ error: 'Bookings are currently closed for this date' });
     }
     
     const validDates = getValidDatesForCategory(category);
