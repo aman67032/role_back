@@ -13,8 +13,7 @@ app.use(cors({
     'http://localhost:3000',
     'http://localhost:5000',
     'https://role-self-phi.vercel.app',
-    'https://role-oybwcx1qw-aman67032s-projects.vercel.app',
-    /^https:\/\/role-.*\.vercel\.app$/
+    'https://role-oybwcx1qw-aman67032s-projects.vercel.app'
   ],
   credentials: true
 }));
@@ -24,7 +23,7 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Valid dates and time slots
-const BLOCKED_DATES = ['2026-03-28', '2026-03-30', '2026-04-01', '2026-04-02', '2026-04-03', '2026-04-04', '2026-04-06' ];
+const BLOCKED_DATES = ['2026-03-28', '2026-03-30', '2026-04-01', '2026-04-02', '2026-04-03', '2026-04-04' ];
 
 // Configuration for OH/Cores
 const OH_CORES_CONFIG = {
