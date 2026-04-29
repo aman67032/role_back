@@ -175,10 +175,22 @@ app.get('/api/slots', async (req, res) => {
 // POST /api/book — Atomically books a slot
 app.post('/api/book', async (req, res) => {
   try {
-    const { date, timeSlot, slotIndex = 0, category = 'oh-cores', name, phone, jkluId, rollNumber, formNumber } = req.body;
+    const { date, timeSlot, slotIndex = 0, category = 'oh-cores', name, phone, jkluId, rollNumber, formNumber, committee } = req.body;
 
-    if (!date || !timeSlot || !name || !phone || !jkluId || !rollNumber || !formNumber) {
-      return res.status(400).json({ error: 'All fields are required' });
+    // Basic validation
+    if (!date || !timeSlot || !name || !jkluId || !rollNumber) {
+      return res.status(400).json({ error: 'Required fields are missing' });
+    }
+
+    // Category-specific validation
+    if (category !== 'leaders') {
+      if (!phone || !formNumber) {
+        return res.status(400).json({ error: 'Phone and Form Number are required for this category' });
+      }
+    } else {
+      if (!committee) {
+        return res.status(400).json({ error: 'Committee is required for leaders' });
+      }
     }
     
     if (BLOCKED_DATES.includes(date)) {
@@ -213,7 +225,8 @@ app.post('/api/book', async (req, res) => {
         phone,
         jkluId,
         rollNumber,
-        formNumber
+        formNumber,
+        committee
       });
     } catch (dupErr) {
       if (dupErr.code === 11000) {
@@ -323,7 +336,7 @@ app.get('/api/admin/bookings/export', async (req, res) => {
     const bookings = await Booking.find().sort({ date: 1, timeSlot: 1 });
     
     // Create CSV header (using let for content appending)
-    let csvContent = 'Date,Time Slot,Category,Instance,Name,Phone,JKLU ID,Roll Number,Form Number,Booking Date\n';
+    let csvContent = 'Date,Time Slot,Category,Instance,Name,Phone,JKLU ID,Roll Number,Form Number,Committee,Booking Date\n';
     
     // Add rows
     bookings.forEach(b => {
@@ -336,7 +349,8 @@ app.get('/api/admin/bookings/export', async (req, res) => {
         `'${b.phone}`, // Added ' to prevent Excel from scientific notation
         b.jkluId,
         b.rollNumber,
-        b.formNumber,
+        b.formNumber || '',
+        `"${(b.committee || '').replace(/"/g, '""')}"`,
         new Date(b.createdAt).toLocaleString()
       ].join(',');
       csvContent += row + '\n';

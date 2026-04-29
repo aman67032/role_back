@@ -4,10 +4,11 @@ const BookingSchema = new mongoose.Schema({
   date: { type: String, required: true },
   timeSlot: { type: String, required: true },
   name: { type: String, required: true },
-  phone: { type: String, required: true },
+  phone: { type: String },
   jkluId: { type: String, required: true },
   rollNumber: { type: String, required: true },
-  formNumber: { type: String, required: true },
+  formNumber: { type: String },
+  committee: { type: String },
   category: { type: String, enum: ['oh-cores', 'volunteers', 'leaders'], default: 'oh-cores' },
   slotIndex: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
