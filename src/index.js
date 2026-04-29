@@ -46,8 +46,31 @@ const VOLUNTEER_CONFIG = {
   ]
 };
 
+// Configuration for Leaders (Team Leaders & Cohort Leaders)
+const LEADERS_CONFIG = {
+  dates: ['2026-04-30', '2026-05-01'],
+  slotsPerDate: {
+    '2026-04-30': [
+      '09:30', '09:45', '10:00', '10:15', '10:30', '10:45',
+      '11:00', '11:15', '11:30', '11:45',
+      '12:00', '12:15', '12:30', '12:45',
+      '13:00', '13:15', '13:30', '13:45',
+      '14:15'
+    ],
+    '2026-05-01': [
+      '09:30', '09:45', '10:00', '10:15', '10:30', '10:45',
+      '11:00', '11:15', '11:30', '11:45',
+      '12:00', '12:15'
+    ]
+  }
+};
+
 // Helper to get all slots for a category and date
 function getSlotsForCategory(category, date) {
+  if (category === 'leaders') {
+    const slots = LEADERS_CONFIG.slotsPerDate[date] || [];
+    return slots.map(s => ({ timeSlot: s, slotIndex: 0 }));
+  }
   if (category === 'volunteers') {
     const slots = [...VOLUNTEER_CONFIG.commonSlots];
     if (date === '2026-03-28') {
@@ -71,6 +94,7 @@ function getSlotsForCategory(category, date) {
 }
 
 function getValidDatesForCategory(category) {
+  if (category === 'leaders') return LEADERS_CONFIG.dates;
   return category === 'volunteers' ? VOLUNTEER_CONFIG.dates : OH_CORES_CONFIG.dates;
 }
 

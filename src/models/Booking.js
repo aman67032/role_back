@@ -8,7 +8,7 @@ const BookingSchema = new mongoose.Schema({
   jkluId: { type: String, required: true },
   rollNumber: { type: String, required: true },
   formNumber: { type: String, required: true },
-  category: { type: String, enum: ['oh-cores', 'volunteers'], default: 'oh-cores' },
+  category: { type: String, enum: ['oh-cores', 'volunteers', 'leaders'], default: 'oh-cores' },
   slotIndex: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
 });
