@@ -64,8 +64,20 @@ const LEADERS_CONFIG = {
   }
 };
 
+// Configuration for Clusters
+const CLUSTER_CONFIG = {
+  dates: ['2026-06-01', '2026-06-10'],
+  slots: [
+    '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
+    '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
+  ]
+};
+
 // Helper to get all slots for a category and date
 function getSlotsForCategory(category, date) {
+  if (category === 'clusters') {
+    return CLUSTER_CONFIG.slots.map(s => ({ timeSlot: s, slotIndex: 0 }));
+  }
   if (category === 'leaders') {
     const slots = LEADERS_CONFIG.slotsPerDate[date] || [];
     return slots.map(s => ({ timeSlot: s, slotIndex: 0 }));
@@ -94,6 +106,7 @@ function getSlotsForCategory(category, date) {
 
 function getValidDatesForCategory(category) {
   if (category === 'leaders') return LEADERS_CONFIG.dates;
+  if (category === 'clusters') return CLUSTER_CONFIG.dates;
   return category === 'volunteers' ? VOLUNTEER_CONFIG.dates : OH_CORES_CONFIG.dates;
 }
 
@@ -154,7 +167,7 @@ app.get('/api/slots', async (req, res) => {
     }
 
     const allSlots = getSlotsForCategory(category, date);
-    const bookings = await Booking.find({ date, category }, { timeSlot: 1, slotIndex: 1, _id: 0 });
+    const bookings = await Booking.find({ date, category }, { timeSlot: 1, slotIndex: 1, name: 1, _id: 0 });
     
     const bookedSlotKeys = bookings.map(b => `${b.timeSlot}-${b.slotIndex}`);
 
@@ -182,11 +195,11 @@ app.post('/api/book', async (req, res) => {
     }
 
     // Category-specific validation
-    if (category !== 'leaders') {
+    if (category !== 'leaders' && category !== 'clusters') {
       if (!phone || !formNumber) {
         return res.status(400).json({ error: 'Phone and Form Number are required for this category' });
       }
-    } else {
+    } else if (category === 'leaders') {
       if (!committee) {
         return res.status(400).json({ error: 'Committee is required for leaders' });
       }
@@ -210,7 +223,15 @@ app.post('/api/book', async (req, res) => {
     // First check if slot is already booked
     const existing = await Booking.findOne({ date, timeSlot, slotIndex, category });
     if (existing) {
+      if (category === 'clusters' && existing.name === name) {
+        return res.status(200).json({ message: 'Slot already booked by you!', date, timeSlot, category });
+      }
       return res.status(409).json({ error: 'This slot has already been booked!' });
+    }
+
+    // For clusters, they can only have ONE slot booked. Delete any prior booking for this cluster name.
+    if (category === 'clusters') {
+      await Booking.deleteMany({ category: 'clusters', name: name });
     }
 
     // Attempt atomic insert
