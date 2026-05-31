@@ -66,17 +66,19 @@ const LEADERS_CONFIG = {
 
 // Configuration for Clusters
 const CLUSTER_CONFIG = {
-  dates: ['2026-06-01', '2026-06-02'],
-  slots: [
-    '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-    '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
-  ]
+  dates: ['2026-06-01', '2026-06-02', '2026-06-03'],
+  slotsPerDate: {
+    '2026-06-01': ['11:00', '12:00', '13:00', '14:00', '15:00', '16:00'],
+    '2026-06-02': ['11:00', '12:00', '13:00', '14:00', '15:00', '16:00'],
+    '2026-06-03': ['11:00', '12:00', '13:00']
+  }
 };
 
 // Helper to get all slots for a category and date
 function getSlotsForCategory(category, date) {
   if (category === 'clusters') {
-    return CLUSTER_CONFIG.slots.map(s => ({ timeSlot: s, slotIndex: 0 }));
+    const slots = CLUSTER_CONFIG.slotsPerDate[date] || [];
+    return slots.map(s => ({ timeSlot: s, slotIndex: 0 }));
   }
   if (category === 'leaders') {
     const slots = LEADERS_CONFIG.slotsPerDate[date] || [];
