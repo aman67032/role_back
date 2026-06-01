@@ -9,7 +9,7 @@ const BookingSchema = new mongoose.Schema({
   rollNumber: { type: String, required: true },
   formNumber: { type: String },
   committee: { type: String },
-  category: { type: String, enum: ['oh-cores', 'volunteers', 'leaders', 'clusters'], default: 'oh-cores' },
+  category: { type: String, enum: ['oh-cores', 'volunteers', 'leaders', 'clusters', 'committees'], default: 'oh-cores' },
   slotIndex: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
 });

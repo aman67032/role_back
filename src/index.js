@@ -74,10 +74,24 @@ const CLUSTER_CONFIG = {
   }
 };
 
+// Configuration for Committees
+const COMMITTEE_CONFIG = {
+  dates: ['2026-06-03', '2026-06-04', '2026-06-05'],
+  slotsPerDate: {
+    '2026-06-03': ['15:00', '16:00'],
+    '2026-06-04': ['11:00', '12:00', '13:00', '14:00', '15:00', '16:00'],
+    '2026-06-05': ['11:00', '12:00', '13:00', '14:00', '15:00', '16:00']
+  }
+};
+
 // Helper to get all slots for a category and date
 function getSlotsForCategory(category, date) {
   if (category === 'clusters') {
     const slots = CLUSTER_CONFIG.slotsPerDate[date] || [];
+    return slots.map(s => ({ timeSlot: s, slotIndex: 0 }));
+  }
+  if (category === 'committees') {
+    const slots = COMMITTEE_CONFIG.slotsPerDate[date] || [];
     return slots.map(s => ({ timeSlot: s, slotIndex: 0 }));
   }
   if (category === 'leaders') {
@@ -109,6 +123,7 @@ function getSlotsForCategory(category, date) {
 function getValidDatesForCategory(category) {
   if (category === 'leaders') return LEADERS_CONFIG.dates;
   if (category === 'clusters') return CLUSTER_CONFIG.dates;
+  if (category === 'committees') return COMMITTEE_CONFIG.dates;
   return category === 'volunteers' ? VOLUNTEER_CONFIG.dates : OH_CORES_CONFIG.dates;
 }
 
@@ -197,7 +212,7 @@ app.post('/api/book', async (req, res) => {
     }
 
     // Category-specific validation
-    if (category !== 'leaders' && category !== 'clusters') {
+    if (category !== 'leaders' && category !== 'clusters' && category !== 'committees') {
       if (!phone || !formNumber) {
         return res.status(400).json({ error: 'Phone and Form Number are required for this category' });
       }
@@ -225,7 +240,7 @@ app.post('/api/book', async (req, res) => {
     // First check if slot is already booked
     const existing = await Booking.findOne({ date, timeSlot, slotIndex, category });
     if (existing) {
-      if (category === 'clusters' && existing.name === name) {
+      if ((category === 'clusters' || category === 'committees') && existing.name === name) {
         return res.status(200).json({ message: 'Slot already booked by you!', date, timeSlot, category });
       }
       return res.status(409).json({ error: 'This slot has already been booked!' });
@@ -234,6 +249,10 @@ app.post('/api/book', async (req, res) => {
     // For clusters, they can only have ONE slot booked. Delete any prior booking for this cluster name.
     if (category === 'clusters') {
       await Booking.deleteMany({ category: 'clusters', name: name });
+    }
+    // For committees, they can only have ONE slot booked. Delete any prior booking for this committee name.
+    if (category === 'committees') {
+      await Booking.deleteMany({ category: 'committees', name: name });
     }
 
     // Attempt atomic insert
